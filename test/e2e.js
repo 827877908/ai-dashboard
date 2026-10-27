@@ -72,7 +72,29 @@ function assert(cond, msg) {
   // 免得测试实例跟真实运行中的实例抢缓存、抢清单
   const userData = path.join(__dirname, '.userdata-e2e');
   fs.rmSync(userData, { recursive: true, force: true });
+  fs.mkdirSync(userData, { recursive: true });
   process.env.AI_DASHBOARD_USER_DATA = userData;
+
+  // 数据源指向临时文件 —— 测试可以随便改它，不碰编排器真实的 status.json
+  const tmpStatus = path.join(userData, 'status.json');
+  fs.writeFileSync(tmpStatus, JSON.stringify({
+    version: 1,
+    runId: 'e2e',
+    idea: '端到端测试用的 idea',
+    state: 'running',
+    phase: 'executing',
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    finishedAt: null,
+    totals: { total: 3, pending: 1, running: 1, done: 1, failed: 0, skipped: 0, costUsd: 0.42 },
+    tasks: [
+      { id: 'a1', title: '任务 A', kind: 'implement', status: 'running', attempts: 1, durationMs: 1000, costUsd: 0.2, error: null },
+      { id: 'a2', title: '任务 B', kind: 'implement', status: 'done', attempts: 1, durationMs: 2000, costUsd: 0.22, error: null },
+      { id: 'a3', title: '任务 C', kind: 'implement', status: 'pending', attempts: 0, durationMs: 0, costUsd: 0, error: null },
+    ],
+    omittedTasks: 0,
+  }, null, 2), 'utf8');
+  process.env.AI_DASHBOARD_STATUS = tmpStatus;
 
   const app = await electron.launch({
     executablePath: path.join(ROOT, 'node_modules/electron/dist/electron.exe'),
@@ -211,11 +233,24 @@ function assert(cond, msg) {
       .map((id) => document.getElementById(id).textContent).join(' | '));
   console.log(`  AI 统计行 = ${aiStats}`);
 
-  // 主进程指向的应该是编排器那个 status.json（同级推断，不写死盘符）
+  // 主进程读的就是指定的 status 文件（数据源可配置，默认走同级目录推断）
   const reported = await panel.evaluate(() => window.bridge.statusPath());
   assert(
-    reported.replace(/\\/g, '/').endsWith('orchestrator/plans/status.json'),
-    `主进程自动定位到编排器的 status.json（${reported}）`,
+    reported.replace(/\\/g, '/').endsWith(tmpStatus.replace(/\\/g, '/')),
+    `主进程读的是指定的 status 文件（${reported}）`,
+  );
+
+  // watch 生效：改文件 → 面板自己更新（不是靠轮询）
+  const runningBefore = await panel.evaluate(() => document.getElementById('s-running').textContent);
+  const patched = JSON.parse(fs.readFileSync(tmpStatus, 'utf8'));
+  patched.totals.running = 2;
+  patched.updatedAt = new Date().toISOString();
+  fs.writeFileSync(tmpStatus, JSON.stringify(patched, null, 2), 'utf8');
+  await wait(1500); // watch 事件 + 300ms 防抖
+  const runningAfter = await panel.evaluate(() => document.getElementById('s-running').textContent);
+  assert(
+    runningAfter === '2',
+    `watch 生效：status 文件一变，面板自己更新（${runningBefore} → ${runningAfter}）`,
   );
 
   // ── 5. 失焦隐藏 ─────────────────────────────────────────────

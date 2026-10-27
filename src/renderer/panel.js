@@ -291,7 +291,22 @@ function renderAi(doc) {
   el.dot.dataset.mode = doc.state || 'idle';
   updateStats(totals);
   renderAiTasks(doc.tasks || [], totals);
+  renderOmitted(doc.omittedTasks || 0);
   updateHead();
+}
+
+/** 明细被瘦身过（只留最近几个已结束的）→ 说清楚还有多少条没显示，
+ *  否则列表条数比统计数字少，用户会以为统计坏了。 */
+function renderOmitted(count) {
+  let note = document.getElementById('ai-omitted');
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'ai-omitted';
+    note.className = 'omitted-note';
+    document.getElementById('view-ai').appendChild(note);
+  }
+  note.textContent = count > 0 ? `另有 ${count} 条较早的记录已收起` : '';
+  note.style.display = count > 0 ? '' : 'none';
 }
 
 function renderAiTasks(tasks, totals) {

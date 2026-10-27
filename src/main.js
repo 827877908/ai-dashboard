@@ -18,7 +18,7 @@
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { mkdirSync, readFileSync, renameSync, writeFileSync } = require('fs');
+const { mkdirSync, readFileSync, renameSync, watch, writeFileSync } = require('fs');
 
 // 测试用：独立 userData 目录 → 独立的单实例锁 + 独立的 localStorage，
 // 免得测试实例跟真实实例抢缓存、抢清单。
@@ -27,7 +27,11 @@ if (process.env.AI_DASHBOARD_USER_DATA) {
 }
 
 let statusPath = resolveStatusPath();
-const POLL_MS = 1000;
+
+/** 兜底检查间隔 —— watch 是主路径，这个只是保险（见 startWatching 的注释）。 */
+const FALLBACK_MS = 60000;
+/** 变更防抖：文件事件可能连着来好几下，合并成一次读取。 */
+const DEBOUNCE_MS = 300;
 
 const BALL_SIZE = 48;
 const PANEL_W = 400;
@@ -265,8 +269,51 @@ function pushStatus() {
   }
 }
 
-// ── 轮询：每秒一次（事件驱动的唯一数据源） ────────────────────────────
-setInterval(pushStatus, POLL_MS);
+// ── 文件变化监听（替代轮询） ─────────────────────────────────────────
+//
+// 两个要点：
+//   ① 监听**目录**而不是文件 —— status.json 是原子写（先写 .tmp 再改名），
+//      文件被替换后监听文件本身会失聪；监听目录则改名事件照收不误。
+//   ② 防抖 —— 一次写入可能连着抛好几个事件，合并成一次读取，
+//      否则磁盘不忙、界面倒是忙起来了。
+let watcher = null;
+let debounceTimer = null;
+let fallbackTimer = null;
+
+function schedulePush() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(pushStatus, DEBOUNCE_MS);
+}
+
+function startWatching() {
+  const dir = path.dirname(statusPath);
+  const base = path.basename(statusPath);
+  try {
+    watcher = watch(dir, (_event, filename) => {
+      if (filename && !String(filename).endsWith(base)) return;
+      schedulePush();
+    });
+    watcher.on('error', () => {
+      watcher = null;
+      setTimeout(startWatching, 1000);
+    });
+  } catch {
+    setTimeout(startWatching, 1000);
+  }
+}
+
+/** 换数据源时重新挂监听。 */
+function restartWatching() {
+  if (watcher) {
+    watcher.close();
+    watcher = null;
+  }
+  clearInterval(fallbackTimer);
+  startWatching();
+  // 低频保险：watch 在个别文件系统上会漏事件（比如网络盘），
+  // 每分钟兜一次底，平时它不会触发任何读取以外的动作。
+  fallbackTimer = setInterval(pushStatus, FALLBACK_MS);
+}
 
 // ── 托盘菜单 ─────────────────────────────────────────────────────────
 function createTray() {
@@ -306,6 +353,7 @@ if (!app.requestSingleInstanceLock()) {
     const incoming = (argv || []).find((a) => a.startsWith('--status='));
     if (incoming) {
       statusPath = resolveStatusPath(argv);
+      restartWatching();
       pushStatus();
     }
     if (ball && !ball.isDestroyed()) ball.showInactive();
@@ -315,6 +363,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     createBall();
     createTray();
+    restartWatching();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createBall();
