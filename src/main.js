@@ -37,6 +37,7 @@ const PANEL_GAP = 10;
 /** @type {BrowserWindow|null} */ let panel = null;
 /** @type {Tray|null} */ let tray = null;
 let panelOpen = false;
+let panelHasFocus = false;
 
 // ── 拖拽状态机 ───────────────────────────────────────────────────────
 let dragging = false;
@@ -141,10 +142,19 @@ function createPanel() {
   panel.loadFile(path.join(__dirname, 'renderer', 'panel.html'));
 
   // 失焦隐藏：点面板外的空白处 → 收起。
+  // 两个条件缺一不可：
+  //   ① 面板**曾经拿到过焦点**（否则它可能只是被别的窗口抢了焦点，
+  //      从来没被交互过，收起来反而莫名其妙）
+  //   ② 此刻确实不在焦点上
   // 延迟 180ms 再判定，避免窗口刚显示时的焦点抖动误收。
+  panel.on('focus', () => {
+    panelHasFocus = true;
+  });
   panel.on('blur', () => {
     setTimeout(() => {
-      if (panel && !panel.isDestroyed() && panelOpen && !panel.isFocused()) hidePanel();
+      if (panel && !panel.isDestroyed() && panelOpen && panelHasFocus && !panel.isFocused()) {
+        hidePanel();
+      }
     }, 180);
   });
   panel.on('closed', () => {

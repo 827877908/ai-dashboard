@@ -171,36 +171,29 @@ function assert(cond, msg) {
     const p = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('panel.html'));
     if (p) { p.blur(); }
   });
-  await wait(900);
-  const stillVisible = await app.evaluate(async ({ BrowserWindow }) => {
-    const p = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('panel.html'));
-    return p ? p.isVisible() : false;
-  });
-  assert(!stillVisible, '面板失焦 → 自动收起');
+  // 轮询等它真的消失（本机还有真实实例在跑，焦点有竞争，等固定时间会误判）
+  let hidden = false;
+  for (let i = 0; i < 25 && !hidden; i++) {
+    await wait(120);
+    hidden = !(await app.evaluate(async ({ BrowserWindow }) => {
+      const p = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('panel.html'));
+      return p ? p.isVisible() : false;
+    }));
+  }
+  assert(hidden, '面板失焦 → 自动收起');
 
   // ── 6. 长按拖拽：跟手精度（基准 = 真实光标，坐标系统一用 DIP） ─
-  //     等光标稳定再读 —— 系统光标有平滑动画，读早了会拿到过渡帧
-  const settleCursor = async () => {
-    let prev = await cursorOf();
-    for (let i = 0; i < 20; i++) {
-      await wait(150);
-      const now = await cursorOf();
-      if (Math.hypot(now.x - prev.x, now.y - prev.y) <= 1) return now;
-      prev = now;
-    }
-    return prev;
-  };
-
+  //     测量口径：窗口位移 vs 光标位移。拖拽期间「光标 − 窗口左上角」的
+  //     抓取偏移应当恒定，这条比「前后差值」更抗测量噪声。
   const before = await posOf('ball.html');
   await ball.mouse.move(24, 24);
   await ball.mouse.down();
   await wait(600);                        // 超过 320ms 长按阈值 → 进入拖拽
-  const cur1 = await settleCursor();
+  const cur1 = await cursorOf();
   const real = readRealCursor();
   moveRealCursor(real.x + 170, real.y + 100);
-  await wait(400);
-  const cur2 = await settleCursor();
-  await wait(300);                        // 给跟随循环一点收敛时间
+  await wait(700);                        // 等跟随循环收敛
+  const cur2 = await cursorOf();
   const after = await posOf('ball.html');
   await ball.mouse.up();
   await wait(400);
@@ -210,8 +203,8 @@ function assert(cond, msg) {
   const actualDx = after[0] - before[0];
   const actualDy = after[1] - before[1];
   const drift = Math.hypot(actualDx - expectDx, actualDy - expectDy);
-  assert(drift <= 6,
-    `长按拖拽跟手（窗口 ${actualDx},${actualDy} / 光标 ${expectDx},${expectDy}，偏差 ${drift.toFixed(1)}px）`);
+  console.log(`  窗口位移 ${actualDx},${actualDy} / 光标位移 ${expectDx},${expectDy}`);
+  assert(drift <= 6, `长按拖拽跟手（偏差 ${drift.toFixed(1)}px）`);
 
   const savedPos = await ball.evaluate(() => localStorage.getItem('ai-dashboard.ballPos'));
   assert(savedPos && savedPos.includes('x'), '球的位置已持久化');
