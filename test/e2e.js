@@ -233,6 +233,10 @@ function assert(cond, msg) {
       .map((id) => document.getElementById(id).textContent).join(' | '));
   console.log(`  AI 统计行 = ${aiStats}`);
 
+  // 面板打开就该有数据（轮询 1 秒内就有）
+  const initialText = await panel.evaluate(() => document.getElementById('groups').innerText);
+  assert(initialText.includes('任务 A'), '面板打开即有数据');
+
   // 主进程读的就是指定的 status 文件（数据源可配置，默认走同级目录推断）
   const reported = await panel.evaluate(() => window.bridge.statusPath());
   assert(
@@ -240,17 +244,17 @@ function assert(cond, msg) {
     `主进程读的是指定的 status 文件（${reported}）`,
   );
 
-  // watch 生效：改文件 → 面板自己更新（不是靠轮询）
+  // 轮询生效：改文件 → 面板在一秒内自己更新
   const runningBefore = await panel.evaluate(() => document.getElementById('s-running').textContent);
   const patched = JSON.parse(fs.readFileSync(tmpStatus, 'utf8'));
   patched.totals.running = 2;
   patched.updatedAt = new Date().toISOString();
   fs.writeFileSync(tmpStatus, JSON.stringify(patched, null, 2), 'utf8');
-  await wait(1500); // watch 事件 + 300ms 防抖
+  await wait(2500); // 轮询间隔 1 秒，等它读到
   const runningAfter = await panel.evaluate(() => document.getElementById('s-running').textContent);
   assert(
     runningAfter === '2',
-    `watch 生效：status 文件一变，面板自己更新（${runningBefore} → ${runningAfter}）`,
+    `轮询生效：status 文件一变，面板自己更新（${runningBefore} → ${runningAfter}）`,
   );
 
   // ── 5. 失焦隐藏 ─────────────────────────────────────────────

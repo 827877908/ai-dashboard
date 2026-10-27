@@ -7,7 +7,7 @@ const { contextBridge, ipcRenderer } = require('electron');
  * 不暴露 fs、不暴露 ipcRenderer 本体 —— 渲染层是纯展示 + 本地状态。
  */
 contextBridge.exposeInMainWorld('bridge', {
-  // AI 进度（主进程每秒推送）
+  // AI 进度（主进程在文件变化时推送）
   onStatus: (cb) => ipcRenderer.on('status', (_e, payload) => cb(payload)),
   statusPath: () => ipcRenderer.sendSync('status-path'),
 
