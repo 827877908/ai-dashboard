@@ -41,7 +41,8 @@ function loadPlaywright() {
 const { _electron: electron } = loadPlaywright();
 
 const ROOT = path.join(__dirname, '..');
-const STATUS = 'D:/codex_Files/orchestrator/plans/status.json';
+// 编排器的 status.json —— 与悬浮窗同级推断，不写死本机盘符
+const STATUS = path.join(ROOT, '..', 'orchestrator', 'plans', 'status.json');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function ps(cmd) {
@@ -108,6 +109,19 @@ function assert(cond, msg) {
   const panel = await winOf('panel.html');
   assert(panel, '短按圆球 → 面板已展开');
 
+  // 本机可能还有真实实例在跑，它会跟测试实例抢焦点 → 测试面板被判定失焦而收起
+  // （那是产品的正确行为，单独有对应用例）。这里每次交互前把面板拉回来，
+  // 保证测的是功能而不是焦点竞争。
+  const ensurePanel = async () => {
+    await app.evaluate(async ({ BrowserWindow }) => {
+      const p = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('panel.html'));
+      if (!p) return;
+      if (!p.isVisible()) p.show();
+      p.focus();
+    });
+    await wait(120);
+  };
+
   // ── 2. 默认视图是「我的清单」 ────────────────────────────────
   const activeTab = await panel.evaluate(() => document.querySelector('.tab.is-active').dataset.view);
   assert(activeTab === 'todo', '默认视图是「我的清单」');
@@ -116,6 +130,7 @@ function assert(cond, msg) {
   await panel.evaluate(() => localStorage.removeItem('ai-dashboard.todos.v1'));
   await panel.reload();
   await wait(900);
+  await ensurePanel();
   await panel.fill('#todo-input', '买咖啡豆');
   await panel.press('#todo-input', 'Enter');
   await panel.fill('#todo-input', '写周报');
@@ -125,6 +140,7 @@ function assert(cond, msg) {
     [...document.querySelectorAll('.todo-text')].map((e) => e.textContent));
   assert(texts.includes('买咖啡豆') && texts.includes('写周报'), '两条清单已添加');
 
+  await ensurePanel();
   await panel.click('.todo-item .todo-check');
   const doneCount = await panel.evaluate(
     () => document.querySelectorAll('.todo-item.is-done').length);
@@ -145,6 +161,7 @@ function assert(cond, msg) {
   assert(texts.includes('买咖啡豆'), '刷新后清单仍在（持久化生效）');
 
   // 划掉删除
+  await ensurePanel();
   await panel.click('.todo-item .todo-del');
   await wait(300);
   texts = await panel.evaluate(() =>
@@ -153,6 +170,7 @@ function assert(cond, msg) {
 
   // ── 3.5 今日 / 长期 分组 ──────────────────────────────────
   // 开关切到「长期」→ 新条目进长期组
+  await ensurePanel();
   await panel.click('.scope-btn[data-scope="long"]');
   await panel.fill('#todo-input', '读完那本书');
   await panel.press('#todo-input', 'Enter');
@@ -163,6 +181,7 @@ function assert(cond, msg) {
   assert(scoped.some((s) => s.startsWith('today|')), '原有条目仍在今日组');
 
   // ⇄ 一键在两组间移动
+  await ensurePanel();
   await panel.click('.todo-item[data-scope="today"] .todo-scope-btn');
   await wait(300);
   scoped = await panel.evaluate(() =>
@@ -180,6 +199,7 @@ function assert(cond, msg) {
   assert(meta.includes('今日') && meta.includes('长期'), `统计区分两组（${meta}）`);
 
   // ── 4. Tab 切到 AI 监控 ────────────────────────────────────
+  await ensurePanel();
   await panel.click('.tab[data-view="ai"]');
   const aiOn = await panel.evaluate(() =>
     document.getElementById('view-ai').classList.contains('is-active') &&
@@ -190,6 +210,13 @@ function assert(cond, msg) {
     ['s-pending', 's-running', 's-done', 's-skipped', 's-cost']
       .map((id) => document.getElementById(id).textContent).join(' | '));
   console.log(`  AI 统计行 = ${aiStats}`);
+
+  // 主进程指向的应该是编排器那个 status.json（同级推断，不写死盘符）
+  const reported = await panel.evaluate(() => window.bridge.statusPath());
+  assert(
+    reported.replace(/\\/g, '/').endsWith('orchestrator/plans/status.json'),
+    `主进程自动定位到编排器的 status.json（${reported}）`,
+  );
 
   // ── 5. 失焦隐藏 ─────────────────────────────────────────────
   //     先 focus 再 blur：真实场景里面板是被点开的、本来就有焦点；

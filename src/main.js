@@ -46,11 +46,19 @@ let dragOffset = { x: 0, y: 0 };
 let followTimer = null;
 let lastBallPos = { x: 0, y: 0 };
 
-// ── 路径解析：环境变量 > 命令行参数 > 默认编排器路径 ────────────────────
+// ── 路径解析：环境变量 > 命令行参数 > 兄弟目录里的编排器 ────────────────
+//
+// 默认走「同级推断」：悬浮窗和编排器通常装在同一个父目录下
+//   <共同父目录>/ai-dashboard  +  <共同父目录>/orchestrator
+// 这样别人 clone 下来不用改代码就能跑，也不用在仓里写死某台机器的盘符。
+function defaultStatusPath() {
+  return path.resolve(__dirname, '..', '..', 'orchestrator', 'plans', 'status.json');
+}
+
 function resolveStatusPath(argv = process.argv, env = process.env) {
   const fromEnv = env.AI_DASHBOARD_STATUS;
   const fromArg = (argv.find((a) => a.startsWith('--status=')) || '').split('=')[1];
-  return path.resolve(fromEnv || fromArg || 'D:/codex_Files/orchestrator/plans/status.json');
+  return path.resolve(fromEnv || fromArg || defaultStatusPath());
 }
 
 // ── 托盘图标：代码生成 16x16 圆点，省一个二进制文件 ───────────────────

@@ -21,7 +21,7 @@
 ## 跑起来
 
 ```bash
-cd D:/codex_Files/ai-dashboard
+npm install     # 依赖只有 electron
 npm start
 ```
 
@@ -61,12 +61,14 @@ AI_DASHBOARD_USER_DATA=D:/tmp/ai-dashboard-test npm start
 └─ 刷��不丢、关掉重开还在
 ```
 
-**AI 监控那半边的数据来自** `D:/codex_Files/orchestrator/plans/status.json`，
-由编排器的 `src/observability.ts` 实时写入。要看别的 run：
+**AI 监控那半边的数据来自** 编排器写的 `plans/status.json`。默认会自动定位到**同级目录**下的
+`orchestrator/plans/status.json`（两个项目装在同一个父目录里就行，不用配任何东西）。
+
+要看别的 run，用环境变量或命令行参数指过去：
 
 ```bash
-AI_DASHBOARD_STATUS=D:/other/plans/status.json npm start
-npm start -- --status=D:/other/plans/status.json
+AI_DASHBOARD_STATUS=/path/to/other/plans/status.json npm start
+npm start -- --status=/path/to/other/plans/status.json
 ```
 
 ### status.json 契约
