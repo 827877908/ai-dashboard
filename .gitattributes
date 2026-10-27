@@ -1,0 +1,15 @@
+# Git 属性 —— 锁死换行符
+#
+# 本机全局 core.autocrlf = true，文本文件签出到工作区会被转成 CRLF，
+# 导致 diff 出现整文件变更的噪音。仓库里一律存 LF、签出也用 LF。
+* text=auto eol=lf
+
+# Windows 原生脚本
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.ico binary

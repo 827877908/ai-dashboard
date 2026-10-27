@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="panel-body">
+  <div class="card">
+    <header class="card-head">
+      <div class="head-left">
+        <span id="dot" class="dot" data-mode="idle"></span>
+        <div class="head-text">
+          <div id="title" class="title">我的清单</div>
+          <div id="subtitle" class="subtitle">本地保存 · 刷新不丢</div>
+        </div>
+      </div>
+      <button id="close" class="close-btn" title="收起 (Esc)">✕</button>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab is-active" data-view="todo" type="button">
+        我的清单<span id="todo-badge" class="badge"></span>
+      </button>
+      <button class="tab" data-view="ai" type="button">AI 监控</button>
+    </nav>
+
+    <div class="views">
+      <!-- 个人清单：本地持久化状态 -->
+      <section class="view is-active" id="view-todo">
+        <form class="todo-add" id="todo-form" autocomplete="off">
+          <input id="todo-input" class="todo-input" type="text" placeholder="添加一件事…" />
+          <button class="todo-add-btn" type="submit" title="添加">＋</button>
+        </form>
+        <div class="todo-meta">
+          <span id="todo-left">还剩 0 件</span>
+          <button id="todo-clear" class="link-btn" type="button">清除已完成</button>
+        </div>
+        <div id="todo-list" class="todo-list"></div>
+      </section>
+
+      <!-- AI 进度：外部只读投影 -->
+      <section class="view" id="view-ai">
+        <div class="stats">
+          <div class="stat"><span id="s-pending" class="stat-num">0</span><span class="stat-label">待办</span></div>
+          <div class="stat"><span id="s-running" class="stat-num">0</span><span class="stat-label">进行中</span></div>
+          <div class="stat"><span id="s-done" class="stat-num">0</span><span class="stat-label">完成</span></div>
+          <div class="stat"><span id="s-skipped" class="stat-num">0</span><span class="stat-label">跳过</span></div>
+          <div class="stat"><span id="s-cost" class="stat-num">$0</span><span class="stat-label">花费</span></div>
+        </div>
+        <div id="groups" class="groups"></div>
+      </section>
+    </div>
+
+    <footer class="card-foot">
+      <span id="foot-path" class="foot-path"></span>
+      <span id="foot-time" class="foot-time"></span>
+    </footer>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>

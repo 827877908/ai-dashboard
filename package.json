@@ -1,0 +1,15 @@
+{
+  "name": "ai-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 编排进度桌面悬浮窗 —— 只读编排器的 plans/status.json",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "test": "node test/e2e.js",
+    "shot": "node test/shot.js"
+  },
+  "devDependencies": {
+    "electron": "33.0.0"
+  }
+}
