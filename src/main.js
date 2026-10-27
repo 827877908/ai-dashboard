@@ -18,6 +18,7 @@
 const { app, BrowserWindow, Tray, Menu, screen, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { mkdirSync, readFileSync, renameSync, writeFileSync } = require('fs');
 
 // 测试用：独立 userData 目录 → 独立的单实例锁 + 独立的 localStorage，
 // 免得测试实例跟真实实例抢缓存、抢清单。
@@ -326,6 +327,42 @@ ipcMain.on('toggle-panel', () => togglePanel());
 ipcMain.on('close-panel', () => hidePanel());
 ipcMain.on('status-path', (event) => {
   event.returnValue = statusPath;
+});
+
+// ── 个人清单的持久化 ────────────────────────────────────────────────
+//
+// 为什么不用 localStorage 当唯一真相：它是攒批异步落盘的，
+// 写完立刻断电/强杀进程会丢最后几秒的改动（实测会丢）。
+// 这里改成主进程同步写明文文件 —— 写完那一刻数据已经在磁盘上。
+// 顺带好处：文件在 userData 目录里，用户能直接找到、能复制、能导入。
+const TODO_FILE = () => path.join(app.getPath('userData'), 'todos.json');
+
+function writeTodosAtomic(list) {
+  const target = TODO_FILE();
+  const tmp = `${target}.tmp`;
+  try {
+    mkdirSync(path.dirname(target), { recursive: true });
+    writeFileSync(tmp, JSON.stringify(list, null, 2), 'utf8');
+    renameSync(tmp, target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+ipcMain.on('todos-save', (_event, list) => {
+  if (!Array.isArray(list)) return;
+  writeTodosAtomic(list);
+});
+
+ipcMain.handle('todos-load', () => {
+  try {
+    const raw = readFileSync(TODO_FILE(), 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;   // 没有文件 → 交给渲染层回退到 localStorage
+  }
 });
 
 ipcMain.on('drag-start', () => {

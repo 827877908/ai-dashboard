@@ -45,14 +45,29 @@ let seq = 0;
 // 一、个人清单 —— 本地持久化状态
 // ══════════════════════════════════════════════════════════════════
 
-function loadTodos() {
+/** 清单的本地形态标准化：丢掉坏数据，保证每条都有 text。 */
+function normalizeTodos(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((t) => t && typeof t.text === 'string' && t.text.trim());
+}
+
+/** localStorage：快，但攒批异步落盘，断电可能丢最后一次改动。 */
+function loadFromLocal() {
   try {
-    const raw = localStorage.getItem(TODO_KEY);
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr.filter((t) => t && typeof t.text === 'string' && t.text.trim());
+    return normalizeTodos(JSON.parse(localStorage.getItem(TODO_KEY)));
   } catch {
     return [];
+  }
+}
+
+/** 主进程写的明文文件：权威版本，同步落盘，断电也不丢。 */
+async function loadFromFile() {
+  if (!window.bridge) return null;
+  try {
+    const list = await window.bridge.loadTodos();
+    return list ? normalizeTodos(list) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -62,9 +77,11 @@ function saveTodos() {
   } catch {
     /* 写不进去就算了，界面照常用 */
   }
+  // 同步落盘给主进程 —— 这一步保证断电也不丢
+  if (window.bridge) window.bridge.saveTodos(todos);
 }
 
-let todos = loadTodos();
+let todos = loadFromLocal();
 
 function newId() {
   seq += 1;
@@ -345,3 +362,11 @@ document.addEventListener('keydown', (e) => {
 // 首屏：个人清单是默认视图
 renderTodos();
 switchView('todo');
+
+// 文件里的版本才是权威的（localStorage 只是快速首屏）—— 拿到后覆盖
+loadFromFile().then((list) => {
+  if (list) {
+    todos = list;
+    renderTodos();
+  }
+});

@@ -133,6 +133,11 @@ function assert(cond, msg) {
   const stored = await panel.evaluate(() => localStorage.getItem('ai-dashboard.todos.v1'));
   assert(stored && stored.includes('买咖啡豆'), '清单已写入 localStorage');
 
+  // 权威副本在磁盘上的明文文件里（断电也不丢）
+  const todoFile = path.join(userData, 'todos.json');
+  const fileSaved = fs.existsSync(todoFile) ? fs.readFileSync(todoFile, 'utf8') : null;
+  assert(fileSaved && fileSaved.includes('买咖啡豆'), '清单已同步落盘为明文文件');
+
   await panel.reload();
   await wait(900);
   texts = await panel.evaluate(() =>

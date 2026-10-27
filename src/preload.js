@@ -22,4 +22,8 @@ contextBridge.exposeInMainWorld('bridge', {
   // 位置持久化：localStorage 在渲染层，主进程只负责落地窗口坐标
   applyPosition: (x, y) => ipcRenderer.send('apply-position', { x, y }),
   onPositionSaved: (cb) => ipcRenderer.on('position-saved', (_e, pos) => cb(pos)),
+
+  // 个人清单：主进程同步落盘（localStorage 攒批异步，断电会丢）
+  saveTodos: (list) => ipcRenderer.send('todos-save', list),
+  loadTodos: () => ipcRenderer.invoke('todos-load'),
 });
