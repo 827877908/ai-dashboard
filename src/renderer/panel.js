@@ -30,6 +30,8 @@ const el = {
   todoLeft: document.getElementById('todo-left'),
   todoBadge: document.getElementById('todo-badge'),
   todoClear: document.getElementById('todo-clear'),
+  scopeSwitch: document.getElementById('scope-switch'),
+  scopeBtns: [...document.querySelectorAll('.scope-btn')],
 };
 
 const TODO_KEY = 'ai-dashboard.todos.v1';
@@ -37,6 +39,7 @@ const ICON = { pending: '○', running: '◐', done: '●', failed: '✕', skipp
 const ORDER = { running: 0, pending: 1, blocked: 2, failed: 3, skipped: 4, done: 5 };
 
 let currentView = 'todo';
+let currentScope = 'today';
 let lastDoc = null;
 let lastUpdate = 0;
 let seq = 0;
@@ -45,10 +48,12 @@ let seq = 0;
 // 一、个人清单 —— 本地持久化状态
 // ══════════════════════════════════════════════════════════════════
 
-/** 清单的本地形态标准化：丢掉坏数据，保证每条都有 text。 */
+/** 清单的本地形态标准化：丢掉坏数据，保证每条都有 text 和合法的 scope。 */
 function normalizeTodos(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr.filter((t) => t && typeof t.text === 'string' && t.text.trim());
+  return arr
+    .filter((t) => t && typeof t.text === 'string' && t.text.trim())
+    .map((t) => ({ ...t, scope: t.scope === 'long' ? 'long' : 'today' }));
 }
 
 /** localStorage：快，但攒批异步落盘，断电可能丢最后一次改动。 */
@@ -88,47 +93,74 @@ function newId() {
   return `${Date.now().toString(36)}-${seq.toString(36)}`;
 }
 
-function todoLeft() {
-  return todos.filter((t) => !t.done).length;
+/** 两组：今日（今天要推完的） · 长期（一直在推进的）。 */
+function scopeOf(t) {
+  return t.scope === 'long' ? 'long' : 'today';
+}
+
+/** 某一组里还没做完的件数。 */
+function pendingOf(list) {
+  return list.filter((t) => !t.done).length;
 }
 
 /** 未完成在前（新的在上），已完成沉到底部。 */
-function sortedTodos() {
-  return [...todos].sort((a, b) => {
+function sortedTodos(list) {
+  return [...list].sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
     return (b.createdAt || 0) - (a.createdAt || 0);
   });
 }
 
+function todoItemHtml(t) {
+  const isLong = scopeOf(t) === 'long';
+  return (
+    `<div class="todo-item${t.done ? ' is-done' : ''}" data-id="${esc(t.id)}" data-scope="${isLong ? 'long' : 'today'}">` +
+    `<button class="todo-check" data-act="toggle" title="${t.done ? '标记未完成' : '标记完成'}">` +
+    `${t.done ? '✓' : ''}</button>` +
+    `<span class="todo-text">${esc(t.text)}</span>` +
+    `<button class="todo-scope-btn" data-act="scope" title="${isLong ? '移到今日' : '移到长期'}">⇄</button>` +
+    `<button class="todo-del" data-act="del" title="划掉">✕</button>` +
+    `</div>`
+  );
+}
+
+/** 两组标题恒定显示 —— 空组显示 0，否则用户会以为那一栏不存在。
+ *  数字取**待办数**（与标题栏的统计口径一致；已完成的仍列在组内，只是划掉了）。 */
+function groupHtml(label, list) {
+  return (
+    `<div class="todo-group">${label}<span class="cnt">${pendingOf(list)}</span></div>` +
+    list.map(todoItemHtml).join('')
+  );
+}
+
 function renderTodos() {
-  const list = sortedTodos();
-  if (!list.length) {
+  const today = sortedTodos(todos.filter((t) => scopeOf(t) === 'today'));
+  const long = sortedTodos(todos.filter((t) => scopeOf(t) === 'long'));
+
+  if (!today.length && !long.length) {
     el.todoList.innerHTML =
       '<div class="empty"><span class="big">✓</span>清单是空的<br/>上面加一条试试</div>';
   } else {
-    el.todoList.innerHTML = list
-      .map(
-        (t) =>
-          `<div class="todo-item${t.done ? ' is-done' : ''}" data-id="${esc(t.id)}">` +
-          `<button class="todo-check" data-act="toggle" title="${t.done ? '标记未完成' : '标记完成'}">` +
-          `${t.done ? '✓' : ''}</button>` +
-          `<span class="todo-text">${esc(t.text)}</span>` +
-          `<button class="todo-del" data-act="del" title="划掉">✕</button>` +
-          `</div>`
-      )
-      .join('');
+    el.todoList.innerHTML =
+      groupHtml('今日', today) + groupHtml('长期', long);
   }
-  const left = todoLeft();
-  el.todoLeft.textContent = left ? `还剩 ${left} 件` : '全部做完了';
-  el.todoBadge.textContent = left ? String(left) : '';
-  el.todoBadge.style.display = left ? '' : 'none';
+
+  const todayLeft = pendingOf(today);
+  const longLeft = pendingOf(long);
+  el.todoLeft.textContent = `今日 ${todayLeft} 件 · 长期 ${longLeft} 件`;
+  // 徽标只报今日 —— 每天真正要盯的是今日那堆
+  el.todoBadge.textContent = todayLeft ? String(todayLeft) : '';
+  el.todoBadge.style.display = todayLeft ? '' : 'none';
   updateHead();
 }
 
 function addTodo(text) {
   const value = String(text || '').trim();
   if (!value) return;
-  todos.push({ id: newId(), text: value, done: false, createdAt: Date.now(), doneAt: null });
+  todos.push({
+    id: newId(), text: value, done: false,
+    scope: currentScope, createdAt: Date.now(), doneAt: null,
+  });
   saveTodos();
   renderTodos();
 }
@@ -138,6 +170,15 @@ function toggleTodo(id) {
   if (!t) return;
   t.done = !t.done;
   t.doneAt = t.done ? Date.now() : null;
+  saveTodos();
+  renderTodos();
+}
+
+/** 在「今日」和「长期」之间挪一条。 */
+function moveTodo(id) {
+  const t = todos.find((x) => x.id === id);
+  if (!t) return;
+  t.scope = scopeOf(t) === 'long' ? 'today' : 'long';
   saveTodos();
   renderTodos();
 }
@@ -160,6 +201,7 @@ el.todoList.addEventListener('click', (e) => {
   if (!btn) return;
   const id = btn.closest('.todo-item').dataset.id;
   if (btn.dataset.act === 'toggle') toggleTodo(id);
+  else if (btn.dataset.act === 'scope') moveTodo(id);
   else if (btn.dataset.act === 'del') deleteTodo(id);
 });
 
@@ -171,6 +213,16 @@ el.todoForm.addEventListener('submit', (e) => {
 });
 
 el.todoClear.addEventListener('click', clearDone);
+
+// 分组开关：决定新加的条目进哪一组
+el.scopeSwitch.addEventListener('click', (e) => {
+  const btn = e.target.closest('.scope-btn');
+  if (!btn) return;
+  currentScope = btn.dataset.scope === 'long' ? 'long' : 'today';
+  for (const b of el.scopeBtns) {
+    b.classList.toggle('is-active', b.dataset.scope === currentScope);
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════
 // 二、AI 监控 —— 外部只读投影
@@ -290,9 +342,12 @@ function renderAiTasks(tasks, totals) {
 
 function updateHead() {
   if (currentView === 'todo') {
-    const left = todoLeft();
+    const today = todos.filter((t) => scopeOf(t) === 'today' && !t.done).length;
+    const long = todos.filter((t) => scopeOf(t) === 'long' && !t.done).length;
     el.title.textContent = '我的清单';
-    el.subtitle.textContent = left ? `${left} 件待办 · 本地保存` : '本地保存 · 刷新不丢';
+    el.subtitle.textContent = today || long
+      ? `今日 ${today} 件 · 长期 ${long} 件`
+      : '本地保存 · 刷新不丢';
     el.dot.style.display = 'none'; // 状态灯是 AI 的语义，清单视图里不该出现
     return;
   }

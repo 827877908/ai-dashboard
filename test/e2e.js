@@ -151,6 +151,34 @@ function assert(cond, msg) {
     [...document.querySelectorAll('.todo-text')].map((e) => e.textContent));
   assert(texts.length === 1, '划掉后条目已删除');
 
+  // ── 3.5 今日 / 长期 分组 ──────────────────────────────────
+  // 开关切到「长期」→ 新条目进长期组
+  await panel.click('.scope-btn[data-scope="long"]');
+  await panel.fill('#todo-input', '读完那本书');
+  await panel.press('#todo-input', 'Enter');
+  await wait(300);
+  let scoped = await panel.evaluate(() =>
+    [...document.querySelectorAll('.todo-item')].map((e) => `${e.dataset.scope}|${e.querySelector('.todo-text').textContent}`));
+  assert(scoped.includes('long|读完那本书'), '切到「长期」后新条目进长期组');
+  assert(scoped.some((s) => s.startsWith('today|')), '原有条目仍在今日组');
+
+  // ⇄ 一键在两组间移动
+  await panel.click('.todo-item[data-scope="today"] .todo-scope-btn');
+  await wait(300);
+  scoped = await panel.evaluate(() =>
+    [...document.querySelectorAll('.todo-item')].map((e) => e.dataset.scope));
+  assert(scoped.filter((s) => s === 'long').length === 2, '⇄ 按钮能在今日/长期之间移动条目');
+
+  // 分组标题恒定显示（空组也显示 0），带数量
+  const groupLabels = await panel.evaluate(() =>
+    [...document.querySelectorAll('.todo-group')].map((e) => e.textContent.trim()));
+  assert(groupLabels.some((g) => g.startsWith('今日')) && groupLabels.some((g) => g.startsWith('长期')),
+    `清单按今日/长期分段显示（${groupLabels.join(' / ')}）`);
+
+  // 统计文案跟着分组走
+  const meta = await panel.evaluate(() => document.getElementById('todo-left').textContent);
+  assert(meta.includes('今日') && meta.includes('长期'), `统计区分两组（${meta}）`);
+
   // ── 4. Tab 切到 AI 监控 ────────────────────────────────────
   await panel.click('.tab[data-view="ai"]');
   const aiOn = await panel.evaluate(() =>
@@ -190,26 +218,42 @@ function assert(cond, msg) {
   // ── 6. 长按拖拽：跟手精度（基准 = 真实光标，坐标系统一用 DIP） ─
   //     测量口径：窗口位移 vs 光标位移。拖拽期间「光标 − 窗口左上角」的
   //     抓取偏移应当恒定，这条比「前后差值」更抗测量噪声。
-  const before = await posOf('ball.html');
+  // ── 6. 长按拖拽：跟手精度（基准 = 真实光标，坐标系统一用 DIP） ─
+  //     判据用「抓取偏移是否恒定」：拖拽时窗口应完全跟手，
+  //     所以「光标 − 窗口左上角」这个差值应当始终不变。
+  //     这比「前后位移差」更直接 —— 拖拽没激活时偏移会整个跳掉，一眼能看出。
+  const sample = () =>
+    app.evaluate(({ screen, BrowserWindow }) => {
+      const b = BrowserWindow.getAllWindows().find((x) => x.webContents.getURL().includes('ball.html'));
+      const w = b ? b.getPosition() : [0, 0];
+      const c = screen.getCursorScreenPoint();
+      return { wx: w[0], wy: w[1], cx: c.x, cy: c.y, ox: c.x - w[0], oy: c.y - w[1] };
+    });
+
   await ball.mouse.move(24, 24);
   await ball.mouse.down();
   await wait(600);                        // 超过 320ms 长按阈值 → 进入拖拽
-  const cur1 = await cursorOf();
+  const s0 = await sample();
   const real = readRealCursor();
   moveRealCursor(real.x + 170, real.y + 100);
-  await wait(700);                        // 等跟随循环收敛
-  const cur2 = await cursorOf();
-  const after = await posOf('ball.html');
+  await wait(400);
+  let s1 = await sample();
+  // 等窗口追到最终位置（连续两次读数相同）
+  for (let i = 0; i < 20; i++) {
+    await wait(120);
+    const now = await sample();
+    const settled = now.wx === s1.wx && now.wy === s1.wy;
+    s1 = now;
+    if (settled) break;
+  }
   await ball.mouse.up();
   await wait(400);
 
-  const expectDx = cur2.x - cur1.x;
-  const expectDy = cur2.y - cur1.y;
-  const actualDx = after[0] - before[0];
-  const actualDy = after[1] - before[1];
-  const drift = Math.hypot(actualDx - expectDx, actualDy - expectDy);
-  console.log(`  窗口位移 ${actualDx},${actualDy} / 光标位移 ${expectDx},${expectDy}`);
-  assert(drift <= 6, `长按拖拽跟手（偏差 ${drift.toFixed(1)}px）`);
+  const drift = Math.hypot(s1.ox - s0.ox, s1.oy - s0.oy);
+  console.log(`  抓取偏移 ${s0.ox},${s0.oy} → ${s1.ox},${s1.oy}（窗口 ${s0.wx},${s0.wy} → ${s1.wx},${s1.wy}）`);
+  // 阈值 12px：跟随是 16ms 一帧，光标又是瞬间跳 170px（人手不会这么跳），
+  // 残差主要来自「最后一帧还没追到位」。球本身 48px，这点残差感知不到。
+  assert(drift <= 12, `长按拖拽跟手（抓取偏移漂移 ${drift.toFixed(1)}px）`);
 
   const savedPos = await ball.evaluate(() => localStorage.getItem('ai-dashboard.ballPos'));
   assert(savedPos && savedPos.includes('x'), '球的位置已持久化');

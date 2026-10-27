@@ -37,6 +37,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  // 独立 userData → 独立单实例锁 + 独立 localStorage。
+  // 少了这行会跟运行中的真实实例抢锁，第二个实例立刻退出、截图脚本直接失败。
+  const userData = path.join(__dirname, '.userdata-shot');
+  fs.rmSync(userData, { recursive: true, force: true });
+  process.env.AI_DASHBOARD_USER_DATA = userData;
+
   const app = await electron.launch({
     executablePath: path.join(ROOT, 'node_modules/electron/dist/electron.exe'),
     args: [ROOT],
@@ -71,6 +77,13 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     await panel.fill('#todo-input', t);
     await panel.press('#todo-input', 'Enter');
   }
+  // 长期组
+  await panel.click('.scope-btn[data-scope="long"]');
+  for (const t of ['读完《深度工作》', '每周复盘一次本月产出']) {
+    await panel.fill('#todo-input', t);
+    await panel.press('#todo-input', 'Enter');
+  }
+  await panel.click('.scope-btn[data-scope="today"]');
   await wait(300);
   await panel.click('.todo-item:nth-child(3) .todo-check');
   await wait(1800); // capturePage 会滞后一帧，等合成帧稳定

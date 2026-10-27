@@ -29,11 +29,15 @@
       <!-- 个人清单：本地持久化状态 -->
       <section class="view is-active" id="view-todo">
         <form class="todo-add" id="todo-form" autocomplete="off">
+          <div class="scope-switch" id="scope-switch">
+            <button class="scope-btn is-active" data-scope="today" type="button">今日</button>
+            <button class="scope-btn" data-scope="long" type="button">长期</button>
+          </div>
           <input id="todo-input" class="todo-input" type="text" placeholder="添加一件事…" />
           <button class="todo-add-btn" type="submit" title="添加">＋</button>
         </form>
         <div class="todo-meta">
-          <span id="todo-left">还剩 0 件</span>
+          <span id="todo-left">今日 0 件 · 长期 0 件</span>
           <button id="todo-clear" class="link-btn" type="button">清除已完成</button>
         </div>
         <div id="todo-list" class="todo-list"></div>

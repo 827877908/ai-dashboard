@@ -129,7 +129,45 @@ body {
 .view.is-active { display: flex; }
 
 /* ── 个人清单 ────────────────────────────────────────────────── */
-.todo-add { display: flex; gap: 8px; padding: 12px 14px 8px; }
+.todo-add { display: flex; gap: 8px; padding: 12px 14px 8px; align-items: center; }
+
+/* 分组开关：决定新加的条目进「今日」还是「长期」 */
+.scope-switch {
+  flex: none;
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scope-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  font-family: inherit;
+  padding: 0 9px;
+  line-height: 30px;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.scope-btn:hover { color: var(--text); }
+.scope-btn.is-active { background: rgba(74, 158, 255, 0.18); color: var(--blue); }
+
+/* 分组标题 */
+.todo-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 10px 14px 4px;
+}
+.todo-group .cnt { opacity: 0.7; }
+
+/* 长期项左侧一道竖条，方便一眼分辨 */
+.todo-item[data-scope="long"] { box-shadow: inset 2px 0 0 rgba(255, 176, 32, 0.55); }
 
 .todo-input {
   flex: 1;
@@ -214,6 +252,21 @@ body {
 
 .todo-text { flex: 1; font-size: 12.5px; word-break: break-word; }
 .todo-item.is-done .todo-text { color: var(--text-dim); text-decoration: line-through; }
+
+.todo-scope-btn {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: #565d6d;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 5px;
+  opacity: 0;
+}
+.todo-item:hover .todo-scope-btn { opacity: 1; }
+.todo-scope-btn:hover { color: var(--blue); background: rgba(74, 158, 255, 0.12); }
 
 .todo-del {
   flex: none;
