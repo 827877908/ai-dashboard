@@ -22,7 +22,16 @@ let longPressTimer = null;
 let dragging = false;
 
 // ── 状态色：跟 AI 进度联动 ─────────────────────────────────────────
-const STATES = { idle: 'idle', running: 'running', done: 'done', error: 'error' };
+// 🔴 2026-11-15：补上编排器的新状态 `awaiting-human`（等人工签收）——
+//    之前它落到 'idle'，球看着像"什么都没在跑"，而实际上**有人在等你动手**。
+const STATES = {
+  idle: 'idle',
+  running: 'running',
+  done: 'done',
+  error: 'error',
+  'awaiting-human': 'await',   // 蓝色 + 慢呼吸（要你来看一眼）
+  interrupted: 'error',
+};
 
 function applyState(payload) {
   if (!payload) return;

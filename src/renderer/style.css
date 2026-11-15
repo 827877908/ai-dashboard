@@ -68,7 +68,14 @@ body {
 }
 .ball[data-mode="done"] .ball-core { background: var(--green); }
 .ball[data-mode="error"] .ball-core { background: var(--red); }
+/* 🔴 2026-11-15：等人工签收 → 蓝色 + 慢呼吸（不是失败，是要你来看一眼） */
+.ball[data-mode="await"] .ball-core { background: var(--blue); animation: breathe 2.8s ease-in-out infinite; }
 .ball[data-mode="running"] { opacity: 0.8; }
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
 
 @keyframes pulse {
   0%, 100% { transform: scale(1); }
@@ -318,6 +325,8 @@ body.dragging .ball { transform: scale(1.12); }
 .dot[data-mode="running"] { background: var(--orange); animation: pulse 1.4s ease-in-out infinite; }
 .dot[data-mode="done"] { background: var(--green); }
 .dot[data-mode="error"] { background: var(--red); }
+/* 🔴 2026-11-15：等人工签收 → 蓝色（跟球一致） */
+.dot[data-mode="await"] { background: var(--blue); animation: breathe 2.8s ease-in-out infinite; }
 
 .head-text { min-width: 0; }
 
