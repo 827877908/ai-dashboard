@@ -27,6 +27,8 @@ if (process.env.AI_DASHBOARD_USER_DATA) {
 }
 
 let statusPath = resolveStatusPath();
+
+/** 读状态文件的间隔（毫秒）。 */
 const POLL_MS = 1000;
 
 const BALL_SIZE = 48;
@@ -265,7 +267,7 @@ function pushStatus() {
   }
 }
 
-// ── 轮询：每秒一次（事件驱动的唯一数据源） ────────────────────────────
+// ── 每秒读一次，推给界面 ─────────────────────────────────────────────
 setInterval(pushStatus, POLL_MS);
 
 // ── 托盘菜单 ─────────────────────────────────────────────────────────

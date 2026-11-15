@@ -286,9 +286,26 @@ function renderAiStale(doc) {
   updateHead();
 }
 
+/**
+ * run 级状态 → 颜色模式。
+ * 🔴 2026-11-15：编排器新增了 `awaiting-human`（自动验收覆盖不足，等人签收）
+ *    和 `interrupted` —— 之前这两个状态在 CSS 里没有对应规则 → 点变成默认色，
+ *    看起来像"什么都没发生"。这里补上映射。
+ */
+function stateMode(state) {
+  switch (state) {
+    case 'running': return 'running';
+    case 'done': return 'done';
+    case 'error': return 'error';
+    case 'awaiting-human': return 'await';   // 等你签收 → 蓝色（不是失败，是要你动手）
+    case 'interrupted': return 'error';
+    default: return 'idle';
+  }
+}
+
 function renderAi(doc) {
   const totals = doc.totals || {};
-  el.dot.dataset.mode = doc.state || 'idle';
+  el.dot.dataset.mode = stateMode(doc.state);
   updateStats(totals);
   renderAiTasks(doc.tasks || [], totals);
   updateHead();
@@ -358,6 +375,8 @@ function updateHead() {
   // run 级状态用「运行结束」而不是「已完成」—— 避免和统计行的任务级「完成」撞词
   const stateText = {
     running: '执行中', done: '运行结束', error: '出错', idle: '空闲', interrupted: '已中断',
+    // 🔴 2026-11-15：编排器新增状态 —— 「等你签收」之前**根本没有文字**（整行少一块）
+    'awaiting-human': '等你签收',
   }[(doc && doc.state) || ''];
   if (stateText) bits.push(stateText);
   if (doc && doc.totals && doc.totals.total) bits.push(`${doc.totals.total} 个任务`);
