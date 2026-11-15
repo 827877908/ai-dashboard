@@ -256,9 +256,26 @@ function readStatus() {
   }
 }
 
+/* 🔴 2026-11-15：再带一个数据源 —— 「宝在干什么」。
+ *   悬浮窗原来只反映编排器；宝平时干活（改代码、跑探针）不走编排器 →
+ *   悬浮窗一直显示「空闲」，她看不到他在干嘛。
+ *   → 额外读 Claude Code 的会话记录（只读尾巴），自动推导出当前活动。
+ *   读取失败 / 没活动 → activity = null，界面不显示这一行。 */
+function readActivityPayload() {
+  try {
+    const activity = require('./activity.js').readActivity();
+    if (!activity) return null;
+    if (require('./activity.js').isStale(activity)) return null;
+    return activity;
+  } catch {
+    return null;
+  }
+}
+
 /** 把当前状态推给两个窗口（数据源切换后要立刻推一次，不等下一秒）。 */
 function pushStatus() {
   const payload = readStatus();
+  payload.activity = readActivityPayload();
   if (panel && !panel.isDestroyed() && panelOpen) {
     panel.webContents.send('status', payload);
   }

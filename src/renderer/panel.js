@@ -14,6 +14,7 @@ const el = {
   dot: document.getElementById('dot'),
   title: document.getElementById('title'),
   subtitle: document.getElementById('subtitle'),
+  activity: document.getElementById('activity'),
   groups: document.getElementById('groups'),
   sPending: document.getElementById('s-pending'),
   sRunning: document.getElementById('s-running'),
@@ -410,6 +411,10 @@ setInterval(() => {
 if (window.bridge) {
   window.bridge.onStatus((payload) => {
     if (!payload) return;
+    /* 🔴 2026-11-15：宝在干什么（自动读会话记录来的）——
+     *   跟编排器状态无关，两条线各显示各的。 */
+    const act = payload.activity;
+    el.activity.textContent = act ? `宝 · ${act.label}` : '';
     if (payload.state === 'waiting') {
       renderAiWaiting();
       return;
