@@ -338,6 +338,18 @@ body.dragging .ball { transform: scale(1.12); }
 
 .subtitle { font-size: 11px; color: var(--text-dim); margin-top: 3px; }
 
+/* 🔴 2026-11-15：宝在干什么（第二数据源：会话记录） */
+.activity {
+  font-size: 11px;
+  color: var(--blue);
+  margin-top: 2px;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.activity:empty { display: none; }
+
 .close-btn {
   flex: none;
   background: transparent; border: none;

@@ -237,6 +237,16 @@ function assert(cond, msg) {
   const initialText = await panel.evaluate(() => document.getElementById('groups').innerText);
   assert(initialText.includes('任务 A'), '面板打开即有数据');
 
+  // 🔴 2026-11-15：活动行（宝在干什么）—— 元素必须存在，且有会话记录时要有文字
+  const activity = await panel.evaluate(() => {
+    const el = document.getElementById('activity');
+    return { exists: !!el, text: el ? el.textContent : '' };
+  });
+  assert(activity.exists, '活动行元素存在（宝在干什么）');
+  if (activity.text) {
+    assert(activity.text.startsWith('宝 · '), `活动行显示「宝 · <在做什么>」（${activity.text}）`);
+  }
+
   // 主进程读的就是指定的 status 文件（数据源可配置，默认走同级目录推断）
   const reported = await panel.evaluate(() => window.bridge.statusPath());
   assert(
